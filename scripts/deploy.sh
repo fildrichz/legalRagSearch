@@ -26,7 +26,30 @@ ENDPOINT_ID="${VECTOR_SEARCH_ENDPOINT_ID:?Set VECTOR_SEARCH_ENDPOINT_ID}"
 SERVICE="legal-rag"
 REPO="legal-rag-repo"
 IMAGE="${LOCATION}-docker.pkg.dev/${PROJECT}/${REPO}/${SERVICE}:latest"
+DEPLOYED_INDEX_ID="legal_rag_deployed"
 
+# ── 1. Ensure Vector Search index is deployed ────────────────────────────────
+echo "==> Checking Vector Search index deployment..."
+ALREADY_DEPLOYED=$(gcloud ai index-endpoints describe "${ENDPOINT_ID}" \
+  --region="${LOCATION}" \
+  --project="${PROJECT}" \
+  --format="value(deployedIndexes.id)" 2>/dev/null || true)
+
+if echo "${ALREADY_DEPLOYED}" | grep -q "${DEPLOYED_INDEX_ID}"; then
+  echo "    Index already deployed, skipping."
+else
+  echo "    Deploying index to endpoint (this takes ~20 minutes)..."
+  gcloud ai index-endpoints deploy-index "${ENDPOINT_ID}" \
+    --deployed-index-id="${DEPLOYED_INDEX_ID}" \
+    --display-name="Legal RAG Index" \
+    --index="${INDEX_ID}" \
+    --machine-type=e2-standard-2 \
+    --region="${LOCATION}" \
+    --project="${PROJECT}"
+  echo "    Index deployed."
+fi
+
+# ── 2. Build and push image ──────────────────────────────────────────────────
 echo "==> Creating Artifact Registry repository (if needed)..."
 gcloud artifacts repositories create "${REPO}" \
   --repository-format=docker \
@@ -42,6 +65,7 @@ gcloud builds submit \
   --project="${PROJECT}" \
   .
 
+# ── 3. Deploy to Cloud Run ───────────────────────────────────────────────────
 echo "==> Deploying to Cloud Run..."
 gcloud run deploy "${SERVICE}" \
   --image="${IMAGE}" \
