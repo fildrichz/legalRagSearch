@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Legal RAG — Vertex AI Gemini</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #1f2937;
+      --border: #30363d;
+      --accent: #7c3aed;
+      --accent-light: #a78bfa;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --user-bubble: #1e3a5f;
+      --ai-bubble: #1f2937;
+      --success: #3fb950;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.1rem; font-weight: 600; }
+    .badge {
+      font-size: 0.7rem;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 99px;
+      padding: 2px 10px;
+      font-weight: 500;
+    }
+    #doc-count {
+      margin-left: auto;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    #doc-count span { color: var(--success); font-weight: 600; }
+
+    /* ── Main area ── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      max-width: 860px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px 16px 0;
+      overflow: hidden;
+    }
+
+    /* ── Example chips ── */
+    .examples {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-shrink: 0;
+    }
+    .chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      color: var(--accent-light);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .chip:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    /* ── Chat ── */
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding-bottom: 16px;
+      scroll-behavior: smooth;
+    }
+    #chat::-webkit-scrollbar { width: 6px; }
+    #chat::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .msg { display: flex; flex-direction: column; max-width: 88%; }
+    .msg.user { align-self: flex-end; align-items: flex-end; }
+    .msg.ai   { align-self: flex-start; align-items: flex-start; }
+
+    .bubble {
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      line-height: 1.6;
+      font-size: 0.92rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .msg.user .bubble { background: var(--user-bubble); border-bottom-right-radius: 3px; }
+    .msg.ai   .bubble { background: var(--ai-bubble); border-bottom-left-radius: 3px; border: 1px solid var(--border); }
+
+    .cursor::after { content: "▌"; animation: blink 0.9s step-start infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ── Sources ── */
+    .sources-toggle {
+      margin-top: 8px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      user-select: none;
+    }
+    .sources-toggle:hover { color: var(--accent-light); }
+    .sources-toggle .arrow { transition: transform 0.2s; display: inline-block; }
+    .sources-toggle.open .arrow { transform: rotate(90deg); }
+
+    .sources-list {
+      display: none;
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .sources-list.hidden { display: none !important; }
+
+    .source-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .source-card .source-title {
+      color: var(--accent-light);
+      font-weight: 600;
+      margin-bottom: 4px;
+      font-size: 0.8rem;
+    }
+    .source-card .source-score {
+      float: right;
+      font-size: 0.7rem;
+      background: var(--surface2);
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+
+    /* ── Input bar ── */
+    .input-bar {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 14px 16px;
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+      max-width: 860px;
+      width: 100%;
+      margin: 0 auto;
+      /* full-width despite max-width container */
+      position: sticky;
+      bottom: 0;
+    }
+    /* override for body-level sticky */
+    body > .input-bar { max-width: 100%; }
+    .input-wrapper {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 14px 16px;
+      flex-shrink: 0;
+    }
+    .input-inner {
+      max-width: 860px;
+      margin: 0 auto;
+      display: flex;
+      gap: 10px;
+    }
+    #query {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 10px 14px;
+      font-size: 0.92rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    #query:focus { border-color: var(--accent); }
+    #query::placeholder { color: var(--muted); }
+
+    #send-btn {
+      background: var(--accent);
+      border: none;
+      border-radius: var(--radius);
+      color: #fff;
+      padding: 10px 20px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+      white-space: nowrap;
+    }
+    #send-btn:hover { background: #6d28d9; }
+    #send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Legal RAG Demo</h1>
+  <span class="badge">Vertex AI Gemini 2.0 Flash</span>
+  <div id="doc-count">Loading index...</div>
+</header>
+
+<main>
+  <div class="examples" id="examples">
+    <div class="chip" onclick="ask(this.textContent)">What are common termination clauses?</div>
+    <div class="chip" onclick="ask(this.textContent)">How is intellectual property ownership handled?</div>
+    <div class="chip" onclick="ask(this.textContent)">What indemnification obligations are typical?</div>
+    <div class="chip" onclick="ask(this.textContent)">Summarise the confidentiality obligations</div>
+    <div class="chip" onclick="ask(this.textContent)">What governing law is most commonly used?</div>
+  </div>
+
+  <div id="chat"></div>
+</main>
+
+<div class="input-wrapper">
+  <div class="input-inner">
+    <input id="query" type="text" placeholder="Ask a question about the legal contracts..." autocomplete="off" />
+    <button id="send-btn" onclick="sendMessage()">Send</button>
+  </div>
+</div>
+
+<script>
+  // ── Fetch stats on load ──────────────────────────────────────────────────
+  async function loadStats() {
+    try {
+      const res = await fetch('/stats');
+      const { chunks_indexed } = await res.json();
+      document.getElementById('doc-count').innerHTML =
+        `<span>${chunks_indexed.toLocaleString()}</span> chunks indexed`;
+    } catch {
+      document.getElementById('doc-count').textContent = 'Index unavailable';
+    }
+  }
+  loadStats();
+
+  // ── Helpers ─────────────────────────────────────────────────────────────
+  const chat = document.getElementById('chat');
+  const queryInput = document.getElementById('query');
+  const sendBtn = document.getElementById('send-btn');
+
+  function ask(text) {
+    queryInput.value = text;
+    sendMessage();
+  }
+
+  function appendUserMsg(text) {
+    const el = document.createElement('div');
+    el.className = 'msg user';
+    el.innerHTML = `<div class="bubble">${escHtml(text)}</div>`;
+    chat.appendChild(el);
+    scrollDown();
+  }
+
+  function createAiMsg() {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'msg ai';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble cursor';
+    wrapper.appendChild(bubble);
+
+    const sourcesToggle = document.createElement('div');
+    sourcesToggle.className = 'sources-toggle';
+    sourcesToggle.innerHTML = '<span class="arrow">▶</span> Sources';
+    sourcesToggle.style.display = 'none';
+    wrapper.appendChild(sourcesToggle);
+
+    const sourcesList = document.createElement('div');
+    sourcesList.className = 'sources-list hidden';
+    wrapper.appendChild(sourcesList);
+
+    sourcesToggle.addEventListener('click', () => {
+      const open = sourcesToggle.classList.toggle('open');
+      sourcesList.classList.toggle('hidden', !open);
+    });
+
+    chat.appendChild(wrapper);
+    scrollDown();
+    return { bubble, sourcesToggle, sourcesList };
+  }
+
+  function renderSources(sourcesList, sourcesToggle, sources) {
+    if (!sources.length) return;
+    sourcesList.innerHTML = sources.map(s => `
+      <div class="source-card">
+        <div class="source-title">
+          ${escHtml(s.title)}
+          <span class="source-score">${(s.score * 100).toFixed(0)}% match</span>
+        </div>
+        ${escHtml(s.excerpt)}…
+      </div>
+    `).join('');
+    sourcesToggle.style.display = 'flex';
+  }
+
+  function scrollDown() {
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Main send ────────────────────────────────────────────────────────────
+  async function sendMessage() {
+    const query = queryInput.value.trim();
+    if (!query || sendBtn.disabled) return;
+
+    queryInput.value = '';
+    sendBtn.disabled = true;
+
+    appendUserMsg(query);
+    const { bubble, sourcesToggle, sourcesList } = createAiMsg();
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let answerText = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // keep incomplete line
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = JSON.parse(line.slice(6));
+
+          if (payload.type === 'sources') {
+            renderSources(sourcesList, sourcesToggle, payload.sources);
+          } else if (payload.type === 'token') {
+            answerText += payload.text;
+            bubble.textContent = answerText;
+            scrollDown();
+          } else if (payload.type === 'done') {
+            bubble.classList.remove('cursor');
+          }
+        }
+      }
+    } catch (err) {
+      bubble.classList.remove('cursor');
+      bubble.textContent = `Error: ${err.message}`;
+    } finally {
+      sendBtn.disabled = false;
+      queryInput.focus();
+    }
+  }
+
+  // Send on Enter
+  queryInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+</script>
+</body>
+</html>

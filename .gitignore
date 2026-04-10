@@ -1,0 +1,22 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Data / vector store
+data/chroma_db/
+
+# VS Code
+.vscode/settings.json
+
+# Google credentials
+application_default_credentials.json
+*-service-account.json
