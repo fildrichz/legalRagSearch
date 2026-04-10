@@ -36,8 +36,8 @@ class LegalVectorStore:
         )
 
     async def search_with_scores(self, query: str, k: int = 5) -> list[tuple]:
-        """Return list of (Document, relevance_score) sorted by score desc."""
+        """Return list of (Document, score) sorted by relevance."""
         # Run sync SDK call in a thread to avoid blocking the event loop
         return await asyncio.to_thread(
-            self._store.similarity_search_with_relevance_scores, query, k
+            self._store.similarity_search_with_score, query, k
         )

@@ -230,7 +230,7 @@
 
 <header>
   <h1>Legal RAG Demo</h1>
-  <span class="badge">Vertex AI Gemini 2.0 Flash</span>
+  <span class="badge">Vertex AI Gemini 1.5 Flash</span>
   <div id="doc-count">Loading index...</div>
 </header>
 
@@ -258,9 +258,14 @@
   async function loadStats() {
     try {
       const res = await fetch('/stats');
-      const { chunks_indexed } = await res.json();
-      document.getElementById('doc-count').innerHTML =
-        `<span>${chunks_indexed.toLocaleString()}</span> chunks indexed`;
+      const data = await res.json();
+      if (data.chunks_indexed !== undefined) {
+        document.getElementById('doc-count').innerHTML =
+          `<span>${data.chunks_indexed.toLocaleString()}</span> chunks indexed`;
+      } else {
+        document.getElementById('doc-count').innerHTML =
+          `Backend: <span>Vertex AI Vector Search</span>`;
+      }
     } catch {
       document.getElementById('doc-count').textContent = 'Index unavailable';
     }

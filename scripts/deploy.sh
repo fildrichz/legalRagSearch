@@ -36,11 +36,11 @@ gcloud artifacts repositories create "${REPO}" \
 echo "==> Configuring Docker auth..."
 gcloud auth configure-docker "${LOCATION}-docker.pkg.dev" --quiet
 
-echo "==> Building Docker image..."
-docker build -t "${IMAGE}" .
-
-echo "==> Pushing image to Artifact Registry..."
-docker push "${IMAGE}"
+echo "==> Building and pushing image via Cloud Build..."
+gcloud builds submit \
+  --tag="${IMAGE}" \
+  --project="${PROJECT}" \
+  .
 
 echo "==> Deploying to Cloud Run..."
 gcloud run deploy "${SERVICE}" \
