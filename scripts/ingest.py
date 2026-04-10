@@ -36,8 +36,8 @@ GCS_BUCKET       = os.environ.get("GCS_BUCKET")
 INDEX_ID         = os.environ.get("VECTOR_SEARCH_INDEX_ID")
 ENDPOINT_ID      = os.environ.get("VECTOR_SEARCH_ENDPOINT_ID")
 
-MAX_CONTRACTS    = 40
-CHUNK_SIZE       = 1200
+MAX_CONTRACTS    = 150
+CHUNK_SIZE       = 800
 CHUNK_OVERLAP    = 150
 
 for var, name in [
@@ -73,20 +73,30 @@ def chunk_text(text: str) -> list[str]:
 
 def main():
     # ---- 1. Load CUAD -------------------------------------------------------
-    print("Loading CUAD dataset from HuggingFace (first run downloads ~50 MB)...")
+    print("Loading Atticus contracts from pile-of-law (metadata cached)...")
     try:
         from datasets import load_dataset
     except ImportError:
         sys.exit("Missing: pip install datasets huggingface-hub")
 
-    dataset = load_dataset("theatticusproject/cuad-qa", split="train")
+    dataset = load_dataset(
+        "pile-of-law/pile-of-law",
+        "atticus_contracts",
+        split="train",
+        streaming=True,
+        trust_remote_code=True,
+    )
 
     contracts: dict[str, str] = {}
-    for item in dataset:
-        title = item.get("title") or item.get("id", "unknown")
-        context = item.get("context", "").strip()
-        if title not in contracts and context:
-            contracts[title] = context
+    for i, item in enumerate(dataset):
+        text = item.get("text", "").strip()
+        if not text:
+            continue
+        # Always use index to guarantee uniqueness; append URL hint if available
+        url = item.get("url", "")
+        hint = url.split("/")[-1][:40] if url else ""
+        title = f"{hint}_{i}" if hint else f"contract_{i}"
+        contracts[title] = text
         if len(contracts) >= MAX_CONTRACTS:
             break
 
@@ -133,7 +143,7 @@ def main():
 
     # ---- 4. Stream documents into the index ---------------------------------
     print(f"Streaming {len(docs)} chunks into Vector Search index...")
-    BATCH = 100
+    BATCH = 50
     for i in range(0, len(docs), BATCH):
         batch = docs[i : i + BATCH]
         vectorstore.add_documents(batch)
