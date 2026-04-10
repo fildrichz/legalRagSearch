@@ -24,6 +24,12 @@ import os
 import sys
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent.parent / ".env")
+except ImportError:
+    pass
+
 PROJECT          = os.environ.get("GOOGLE_CLOUD_PROJECT")
 LOCATION         = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
 GCS_BUCKET       = os.environ.get("GCS_BUCKET")
@@ -73,13 +79,14 @@ def main():
     except ImportError:
         sys.exit("Missing: pip install datasets huggingface-hub")
 
-    dataset = load_dataset("cuad", split="train", trust_remote_code=True)
+    dataset = load_dataset("theatticusproject/cuad-qa", split="train")
 
     contracts: dict[str, str] = {}
     for item in dataset:
-        title = item["title"]
-        if title not in contracts and item["context"].strip():
-            contracts[title] = item["context"]
+        title = item.get("title") or item.get("id", "unknown")
+        context = item.get("context", "").strip()
+        if title not in contracts and context:
+            contracts[title] = context
         if len(contracts) >= MAX_CONTRACTS:
             break
 

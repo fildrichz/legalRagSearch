@@ -92,22 +92,28 @@ from google.cloud import aiplatform
 
 aiplatform.init(project=PROJECT, location=LOCATION)
 
-print(f"Creating Vector Search Index '{INDEX_DISPLAY}'...")
-print("  (This takes 30-60 minutes — the script will wait)\n")
-
-index = aiplatform.MatchingEngineIndex.create_tree_ah_index(
-    display_name=INDEX_DISPLAY,
-    dimensions=EMBEDDING_DIM,
-    approximate_neighbors_count=150,
-    distance_measure_type="COSINE_DISTANCE",
-    index_update_method="STREAM_UPDATE",
-    leaf_node_embedding_count=500,
-    leaf_nodes_to_search_percent=7,
-    shard_size="SHARD_SIZE_SMALL",
+existing_indexes = aiplatform.MatchingEngineIndex.list(
+    filter=f'display_name="{INDEX_DISPLAY}"'
 )
-
-index_id = index.name.split("/")[-1]
-print(f"Index created: {index_id}\n")
+if existing_indexes:
+    index = existing_indexes[0]
+    index_id = index.name.split("/")[-1]
+    print(f"Reusing existing index: {index_id}\n")
+else:
+    print(f"Creating Vector Search Index '{INDEX_DISPLAY}'...")
+    print("  (This takes 30-60 minutes — the script will wait)\n")
+    index = aiplatform.MatchingEngineIndex.create_tree_ah_index(
+        display_name=INDEX_DISPLAY,
+        dimensions=EMBEDDING_DIM,
+        approximate_neighbors_count=150,
+        distance_measure_type="COSINE_DISTANCE",
+        index_update_method="STREAM_UPDATE",
+        leaf_node_embedding_count=500,
+        leaf_nodes_to_search_percent=7,
+        shard_size="SHARD_SIZE_SMALL",
+    )
+    index_id = index.name.split("/")[-1]
+    print(f"Index created: {index_id}\n")
 
 
 # ---------------------------------------------------------------------------
@@ -135,15 +141,19 @@ else:
 # Step 5 — Deploy index to endpoint
 # ---------------------------------------------------------------------------
 
-print("Deploying index to endpoint (this takes ~20 minutes)...")
-endpoint.deploy_index(
-    index=index,
-    deployed_index_id=DEPLOYED_INDEX_ID,
-    machine_type="e2-standard-2",
-    min_replica_count=1,
-    max_replica_count=1,
-)
-print("Index deployed.\n")
+deployed_ids = [d.id for d in endpoint.deployed_indexes]
+if DEPLOYED_INDEX_ID in deployed_ids:
+    print(f"Index already deployed as '{DEPLOYED_INDEX_ID}' — skipping.\n")
+else:
+    print("Deploying index to endpoint (this takes ~20 minutes)...")
+    endpoint.deploy_index(
+        index=index,
+        deployed_index_id=DEPLOYED_INDEX_ID,
+        machine_type="e2-standard-2",
+        min_replica_count=1,
+        max_replica_count=1,
+    )
+    print("Index deployed.\n")
 
 
 # ---------------------------------------------------------------------------
