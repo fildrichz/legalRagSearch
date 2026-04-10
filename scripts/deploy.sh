@@ -11,6 +11,12 @@
 
 set -euo pipefail
 
+# Load .env from project root if present
+ENV_FILE="$(dirname "$0")/../.env"
+if [ -f "$ENV_FILE" ]; then
+  set -a && source "$ENV_FILE" && set +a
+fi
+
 PROJECT="${GOOGLE_CLOUD_PROJECT:?Set GOOGLE_CLOUD_PROJECT}"
 LOCATION="${GOOGLE_CLOUD_LOCATION:-us-central1}"
 GCS_BUCKET="${GCS_BUCKET:?Set GCS_BUCKET}"
